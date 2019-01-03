@@ -1,0 +1,94 @@
+* MetaPlot
+An experimental playground for what might become a plotting library,
+which targets JSON based visualization libraries. At the moment that
+means plotly.js (via [[https://github.com/brentp/nim-plotly][nim-plotly]]) and vega-lite (via [[https://github.com/numforge/monocle/][monocle]]). 
+
+The idea for now is just to provide a JSON macro that avoids the need
+for explicit object notation ={}= (inferred from indentation) and have
+some sort of compile time checking of the written JSON based on the
+=JSON Schema= for vega-lite (via [[https://github.com/vindaar/JsonSchemaValidator][JsonSchemaValidator]]) as well as the
+schema defined by plotly.js (which unfortunately is not =JSON
+Schema=). A small binary =checkSchema= is compiled, which from then on
+is called from this library at CT. This binary receives the generated
+JSON (in case of vega-lite) or used keywords (in case of plotly.js)
+and checks whether each makes sense. If not a compile time error is
+thrown.
+
+All this is in a /sort of works/ kind of state. Obviously it's not the
+most user friendly at the moment, because one has to write explicit
+vega-lite JSON or plotly.js (for plotly.js not exactly the JSON, but
+rather the JavaScript wrapper code, which deviates somewhat from their
+JSON schema). 
+
+** Examples
+First call 
+#+BEGIN_SRC sh
+nimble buildCheck
+#+END_SRC
+to build the =checkSchema= binary.
+
+Plotly.js:
+#+BEGIN_SRC nim
+import metaplot
+let someData = [3, 4, 7]
+
+build("plotly"):
+  scatter: # e.g. replace by `scatterTypo` and it'll throw a CT error
+    x = someData
+    y = [4, 5, 6]
+    marker:
+      size = 5
+    name = "Oh a name!"
+  scatter:
+    x = [20, 30, 40]
+    y = [50, 60, 70]
+    xaxis = "x2"
+    yaxis = "y2"
+  layout:
+    title = "simple subplot!"
+    grid:
+      rows = 1
+      columns = 2
+      pattern = "independent"
+# creates a `traces` and `layout` JsonNode, which can be added to a `PlotJson` object
+let plt = PlotJson(traces: traces,
+                   layout: layout)
+plt.show()
+#+END_SRC
+
+Vega-lite:
+#+BEGIN_SRC nim
+import metaplot
+
+build("vega"):
+  data:
+    values = vegaData # bad for CT checking
+    #url = "seattle-weather.csv" # if this line is used, CT checking works
+    format = "csv"
+  mark = "bar"
+  encoding:
+    x:
+      timeUnit = "month"
+      field = "date"
+      `type` = "ordinal"
+      axis:
+        title = "Month of the year"
+    y:
+      aggregate = "count"
+      `type` = "quantitative"
+    color:
+      field = "weather"
+      `type` = "nominal"
+      scale:
+        domain = ["sun","fog","drizzle","rain","snow"]
+        range = ["#e7ba52","#c7c7c7","#aec7e8","#1f77b4","#9467bd"]
+      legend:
+        title = "Weather type"
+
+# if building vega currently doesn't call monocle, but rather creates a `vega` variable
+# so only a single call possible :P
+monocle.show(vega)
+#+END_SRC
+NOTE: for vega-lite CT checking at the moment doesn't work if Nim data
+is being handed to the macro, because the resulting code is not valid
+JSON by itself (only the result of the called =%*= macro is). 
