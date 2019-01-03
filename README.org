@@ -58,7 +58,24 @@ plt.show()
 
 Vega-lite:
 #+BEGIN_SRC nim
-import metaplot
+import metaplot, parsecsv
+
+# read some CSV data 
+var p: CsvParser
+p.open("seattle-weather.csv")
+p.readHeaderRow()
+var vegaData = newJArray()
+while p.readRow():
+  var row = newJObject()
+  for col in items(p.headers):
+    if col != "weather" and col != "date":
+      row[col] = (% (p.rowEntry(col).parseFloat))
+    else:
+      row[col] = (% p.rowEntry(col))
+  vegaData.add row
+
+p.close()
+
 
 build("vega"):
   data:
